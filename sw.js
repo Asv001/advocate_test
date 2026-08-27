@@ -1,4 +1,4 @@
-const CACHE_NAME = 'advokat-exam-cache-v1';
+const CACHE_NAME = 'advokat-exam-cache-v2';
 
 const urlsToCache = [
   './',
