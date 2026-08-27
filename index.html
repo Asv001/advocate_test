@@ -12,8 +12,9 @@
     <meta name="apple-mobile-web-app-title" content="Адвокат">
     <link rel="apple-touch-icon" href="icon-192.png">
     
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script>
-
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script> -->
+    <script src="js-yaml.min.js"></script>
+    
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 15px; max-width: 600px; margin: 0 auto; background-color: #f2f2f7; color: #1c1c1e; }
         h1, h2, h3 { color: #000; }
@@ -162,12 +163,55 @@
         // Экстренная очистка кэша SW для надежного обновления
         // ВНИМАНИЕ: Оставьте этот код для отладки. Когда всё будет работать идеально,
         // этот блок лучше убрать, чтобы приложение работало без интернета.
-        if ('serviceWorker' in navigator) {
-            navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                for(let registration of registrations) registration.unregister();
-            });
-            caches.keys().then(keys => keys.forEach(key => caches.delete(key)));
+        // if ('serviceWorker' in navigator) {
+        //     navigator.serviceWorker.getRegistrations().then(function(registrations) {
+        //         for(let registration of registrations) registration.unregister();
+        //     });
+        //     caches.keys().then(keys => keys.forEach(key => caches.delete(key)));
+        // }
+        
+        // --- ФУНКЦИЯ ОБНОВЛЕНИЯ ПРИЛОЖЕНИЯ (Очистка кэша) ---
+        function forceUpdateApp() {
+            // Окошко с вопросом (Статистика не удалится)
+            if (confirm("Обновить приложение? \n\n(Для загрузки новых вопросов нужен интернет. Ваша статистика и прогресс НЕ удалятся!)")) {
+                if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then(function(registrations) {
+                        for(let registration of registrations) registration.unregister();
+                    });
+                    caches.keys().then(keys => {
+                        Promise.all(keys.map(key => caches.delete(key))).then(() => {
+                            alert("Готово! Приложение обновлено.");
+                            window.location.reload(true); // Перезагружаем страницу
+                        });
+                    });
+                } else {
+                    window.location.reload(true);
+                }
+            }
         }
+
+        // --- ЛОГИКА "ПОТЯНУТЬ ВНИЗ ДЛЯ ОБНОВЛЕНИЯ" ---
+        let touchStartY = 0;
+        let touchEndY = 0;
+
+        // Фиксируем, где палец коснулся экрана
+        document.addEventListener('touchstart', e => {
+            // Срабатывает только если мы находимся в самом верху страницы
+            if (window.scrollY === 0) {
+                touchStartY = e.changedTouches[0].screenY;
+            }
+        }, {passive: true});
+
+        // Фиксируем, где палец оторвался от экрана
+        document.addEventListener('touchend', e => {
+            if (window.scrollY === 0) {
+                touchEndY = e.changedTouches[0].screenY;
+                // Если мы протащили палец вниз больше чем на 150 пикселей
+                if (touchEndY - touchStartY > 150) {
+                    forceUpdateApp();
+                }
+            }
+        }, {passive: true});
 
         let allQuestions = [];
         let examPool = [];
