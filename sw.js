@@ -1,6 +1,5 @@
 const CACHE_NAME = 'advokat-exam-cache-v1';
 
-// Список файлов, которые нужно сохранить на телефон при первой загрузке
 const urlsToCache = [
   './',
   './index.html',
@@ -8,7 +7,7 @@ const urlsToCache = [
   './manifest.json',
   './icon-192.png',
   './icon-512.png',
-  'https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js'
+  './js-yaml.min.js' // <-- Заменили ссылку на локальный файл
 ];
 
 // Установка Service Worker и кэширование файлов
