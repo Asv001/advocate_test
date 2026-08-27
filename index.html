@@ -7,7 +7,6 @@
 
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#f2f2f7">
-
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Адвокат">
@@ -58,7 +57,6 @@
         .grid-item.incorrect:active { transform: scale(0.9); }
         .grid-item.unanswered { background-color: #e5e5ea; color: #8e8e93; }
 
-        /* Стили для истории сессий */
         .history-card { background: #fff; padding: 15px; border-radius: 10px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); font-size: 15px; line-height: 1.4; border-left: 5px solid #007aff;}
         .history-date { font-size: 13px; color: #8e8e93; margin-bottom: 5px; }
     </style>
@@ -67,9 +65,7 @@
     <!-- ГЛАВНОЕ МЕНЮ -->
     <div id="menu">
         <h2 style="text-align: center; margin-bottom: 25px;">ГЛАВНОЕ МЕНЮ</h2>
-        
         <button class="btn btn-outline" style="margin-bottom: 25px;" onclick="showHistory()">📊 Моя статистика</button>
-
         <div class="menu-section">
             <h3>1. Тренировка</h3>
             <label style="color: #666; font-size: 14px;">Начать с вопроса №:</label>
@@ -130,7 +126,6 @@
             <p style="font-size: 13px; color: #8e8e93; margin-top: 0;">💡 Нажмите на красный номер, чтобы посмотреть ошибку.</p>
             <div id="session-grid-container"></div>
         </div>
-        
         <div id="errors-container"></div>
         <button class="btn hidden" id="fix-errors-btn" style="margin-top: 20px;" onclick="startErrorTraining()">Закрепить ошибки блока</button>
         <button class="btn btn-secondary" onclick="returnToMenu(true)" style="margin-top: 10px;">Вернуться в меню</button>
@@ -148,8 +143,12 @@
         let questionsPassedInBlock = 0;
         let answersHistory = {}; 
         
+        // Улучшенный блок загрузки вопросов
         fetch('questionnaire.yaml')
-            .then(res => res.text())
+            .then(res => {
+                if (!res.ok) throw new Error("Файл не найден");
+                return res.text();
+            })
             .then(text => {
                 const data = jsyaml.load(text);
                 allQuestions = data.questions;
@@ -161,10 +160,13 @@
                 document.getElementById('trunc-end').placeholder = `До (макс. ${totalQs})`;
                 document.getElementById('trunc-end').max = totalQs;
             })
-            .catch(err => alert('Ошибка загрузки. Проверьте, что файл questionnaire.yaml доступен.'));
+            .catch(err => {
+                console.error("Ошибка загрузки YAML:", err);
+                alert('Критическая ошибка загрузки вопросов: ' + err.message);
+            });
             
         function startTraining(customPool = null) {
-            if (allQuestions.length === 0) return alert("Вопросы еще загружаются.");
+            if (allQuestions.length === 0) return alert("Подождите, вопросы еще загружаются...");
             currentMode = customPool ? 'error_fixing' : 'training';
             if (customPool) {
                 examPool = customPool;
@@ -180,9 +182,401 @@
 
         function startErrorTraining() {
             if (errors.length > 0) {
-                startTraining([...errors]); // Копируем массив ошибок в новый пул
+                startTraining([...errors]); 
             }
         }
         
         function startExam() {
-            if (allQuestions.length === 0) return alert("Вопросы
+            if (allQuestions.length === 0) return alert("Подождите, вопросы еще загружаются...");
+            currentMode = 'exam';
+            examPool = [...allQuestions].sort(() => 0.5 - Math.random()).slice(0, 90); 
+            initQuizUI();
+            examTimer = setInterval(() => {
+                let elapsed = Math.floor((Date.now() - startTime) / 1000);
+                if (elapsed >= 3600) finishExam(true);
+                updateStats(elapsed);
+            }, 1000);
+        }
+        
+        function startTruncatedExam() {
+            if (allQuestions.length === 0) return alert("Подождите, вопросы еще загружаются...");
+            let s = parseInt(document.getElementById('trunc-start').value);
+            let e = parseInt(document.getElementById('trunc-end').value);
+            if (!s || !e || s > e) return alert("Введите корректный диапазон.");
+            currentMode = 'truncated';
+            examPool = allQuestions.filter(q => q.task_number >= s && q.task_number <= e).sort(() => 0.5 - Math.random());
+            if (examPool.length === 0) return alert("В этом диапазоне нет вопросов.");
+            initQuizUI();
+        }
+        
+        function initQuizUI() {
+            document.getElementById('menu').classList.add('hidden');
+            document.getElementById('results').classList.add('hidden');
+            document.getElementById('quiz').classList.remove('hidden');
+            currentQuestionIndex = 0;
+            correctCount = 0;
+            errors = [];
+            questionsPassedInBlock = 0;
+            answersHistory = {}; 
+            startTime = Date.now();
+            showQuestion();
+        }
+
+        function returnToMenu(force = false) {
+            if (force || confirm("Вы уверены, что хотите прервать тестирование? Текущий прогресс будет потерян.")) {
+                if (examTimer) clearInterval(examTimer);
+                document.getElementById('quiz').classList.add('hidden');
+                document.getElementById('results').classList.add('hidden');
+                document.getElementById('menu').classList.remove('hidden');
+            }
+        }
+        
+        function updateStats(elapsedSeconds) {
+            let elM = Math.floor(elapsedSeconds / 60);
+            let elS = elapsedSeconds % 60;
+            let statsText = `⏳ ${elM} мин ${elS} сек<br>`;
+            if (currentMode === 'exam') {
+                let rem = Math.max(0, 3600 - elapsedSeconds);
+                let remM = Math.floor(rem / 60);
+                let remS = rem % 60;
+                statsText = `⏳ ${elM}м ${elS}с | Ост: ${remM}м ${remS}с<br>`;
+            }
+            statsText += `📝 Вопрос: ${currentQuestionIndex + 1} из ${examPool.length}`;
+            document.getElementById('stats-bar').innerHTML = statsText;
+        }
+        
+        function showQuestion() {
+            document.getElementById('training-feedback').classList.add('hidden');
+            document.getElementById('nav-btns-container').classList.add('hidden');
+            
+            if(currentMode !== 'exam') updateStats(Math.floor((Date.now() - startTime) / 1000));
+            
+            const q = examPool[currentQuestionIndex];
+            document.getElementById('question-text').innerText = `Задание ${q.task_number}: ${q.question}`;
+            
+            document.getElementById('choice-prompt').innerText = q.multiple_choice 
+                ? "💡 Выберите несколько вариантов ответа:" 
+                : "💡 Выберите один вариант ответа:";
+
+            const optionsDiv = document.getElementById('options-container');
+            optionsDiv.innerHTML = '';
+            
+            q.options.forEach((opt, index) => {
+                const btn = document.createElement('div');
+                btn.className = 'option-button';
+                btn.innerHTML = `<strong>${index + 1}.</strong> ${opt}`;
+                btn.dataset.value = index + 1;
+                
+                if (!answersHistory[currentQuestionIndex]) {
+                    btn.onclick = function() {
+                        if (!q.multiple_choice) {
+                            Array.from(optionsDiv.children).forEach(child => child.classList.remove('selected'));
+                        }
+                        this.classList.toggle('selected');
+                    };
+                }
+                optionsDiv.appendChild(btn);
+            });
+
+            if (answersHistory[currentQuestionIndex] && (currentMode === 'training' || currentMode === 'error_fixing')) {
+                document.getElementById('submit-btn').classList.add('hidden');
+                restoreAnswerState();
+            } else {
+                document.getElementById('submit-btn').classList.remove('hidden');
+            }
+        }
+        
+        function submitAnswer() {
+            const q = examPool[currentQuestionIndex];
+            const selectedButtons = document.querySelectorAll('.option-button.selected');
+            const userAnswers = Array.from(selectedButtons).map(btn => parseInt(btn.dataset.value)).sort((a, b) => a - b);
+            
+            if (userAnswers.length === 0) return alert("Пожалуйста, выберите хотя бы один вариант ответа.");
+            
+            const correctAnswers = [...q.correct_answers].sort((a, b) => a - b);
+            const isCorrect = JSON.stringify(userAnswers) === JSON.stringify(correctAnswers);
+            
+            if (!answersHistory[currentQuestionIndex]) {
+                if (isCorrect) correctCount++;
+                else errors.push(q);
+                questionsPassedInBlock++;
+                answersHistory[currentQuestionIndex] = { userAnswers, isCorrect, taskNumber: q.task_number };
+            }
+            
+            if (currentMode === 'training' || currentMode === 'error_fixing') {
+                document.getElementById('submit-btn').classList.add('hidden');
+                restoreAnswerState();
+            } else {
+                nextQuestion(); 
+            }
+        }
+        
+        function restoreAnswerState() {
+            const history = answersHistory[currentQuestionIndex];
+            if (!history) return;
+
+            const q = examPool[currentQuestionIndex];
+            const correctAnswers = q.correct_answers;
+            
+            const buttons = document.querySelectorAll('.option-button');
+            buttons.forEach(btn => {
+                btn.onclick = null;
+                btn.style.cursor = 'default';
+                btn.classList.remove('selected');
+
+                const val = parseInt(btn.dataset.value);
+                const isUserSelected = history.userAnswers.includes(val);
+                const isActuallyCorrect = correctAnswers.includes(val);
+
+                if (isUserSelected && isActuallyCorrect) {
+                    btn.classList.add('correct-choice'); 
+                } else if (isUserSelected && !isActuallyCorrect) {
+                    btn.classList.add('wrong-choice'); 
+                } else if (!isUserSelected && isActuallyCorrect) {
+                    btn.classList.add('missed-choice'); 
+                }
+            });
+
+            const fbDiv = document.getElementById('training-feedback');
+            fbDiv.classList.remove('hidden', 'correct', 'incorrect');
+            if (history.isCorrect) {
+                fbDiv.classList.add('correct');
+                fbDiv.innerText = "✅ Верно! (Балл: 1)";
+            } else {
+                fbDiv.classList.add('incorrect');
+                fbDiv.innerText = "❌ Ответ неверный или неполный. (Балл: 0)";
+            }
+
+            const navContainer = document.getElementById('nav-btns-container');
+            navContainer.classList.remove('hidden');
+            
+            const prevBtn = document.getElementById('prev-btn');
+            const nextBtn = document.getElementById('next-btn');
+            
+            prevBtn.style.display = (currentQuestionIndex === 0) ? 'none' : 'block';
+
+            let maxAnsweredIndex = Math.max(...Object.keys(answersHistory).map(Number));
+            let blockLimit = currentMode === 'error_fixing' ? examPool.length : 10;
+            let isBlockEnd = (questionsPassedInBlock >= blockLimit || currentQuestionIndex === examPool.length - 1);
+            
+            if (isBlockEnd && currentQuestionIndex === maxAnsweredIndex) {
+                nextBtn.innerText = "Завершить блок";
+                nextBtn.onclick = finishBlock;
+            } else {
+                nextBtn.innerText = "Вперед";
+                nextBtn.onclick = nextQuestion;
+            }
+        }
+        
+        function prevQuestion() {
+            if (currentQuestionIndex > 0) {
+                currentQuestionIndex--;
+                showQuestion();
+            }
+        }
+
+        function nextQuestion() {
+            currentQuestionIndex++;
+            if (currentQuestionIndex < examPool.length) {
+                showQuestion();
+            } else {
+                finishExam(false);
+            }
+        }
+
+        function scrollToError(taskNumber) {
+            const errorElement = document.getElementById('error-block-' + taskNumber);
+            if (errorElement) {
+                errorElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        }
+
+        function renderSessionGrid() {
+            let gridHTML = `<div class="session-grid">`;
+            let limit = (currentMode === 'training' || currentMode === 'error_fixing') ? Object.keys(answersHistory).length : examPool.length;
+            let answeredIndices = Object.keys(answersHistory).map(Number).sort((a,b)=>a-b);
+
+            for(let i = 0; i < limit; i++) {
+                let qIndex = (currentMode === 'training' || currentMode === 'error_fixing') ? answeredIndices[i] : i;
+                if (qIndex === undefined) continue;
+                
+                let q = examPool[qIndex];
+                let history = answersHistory[qIndex];
+                
+                let statusClass = 'unanswered';
+                let onclickCode = '';
+                
+                if(history) {
+                    statusClass = history.isCorrect ? 'correct' : 'incorrect';
+                    if (!history.isCorrect) {
+                        onclickCode = `onclick="scrollToError(${q.task_number})" title="Смотреть ошибку"`;
+                    }
+                }
+                
+                gridHTML += `<div class="grid-item ${statusClass}" ${onclickCode}>${q.task_number}</div>`;
+            }
+            gridHTML += `</div>`;
+            document.getElementById('session-grid-container').innerHTML = gridHTML;
+        }
+
+        function saveSessionToStorage(total, correct) {
+            let historyStr = localStorage.getItem('advokat_history');
+            let historyData = historyStr ? JSON.parse(historyStr) : [];
+            
+            let modeName = "Тренировка";
+            if (currentMode === 'exam') modeName = "Экзамен";
+            if (currentMode === 'truncated') modeName = "Усеченный экзамен";
+            if (currentMode === 'error_fixing') modeName = "Работа над ошибками";
+
+            let session = {
+                date: new Date().toLocaleString("ru-RU", {day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute:'2-digit'}),
+                mode: modeName,
+                total: total,
+                correct: correct,
+                accuracy: Math.round((correct / total) * 100)
+            };
+            
+            historyData.unshift(session); 
+            if (historyData.length > 30) historyData.pop(); 
+            
+            localStorage.setItem('advokat_history', JSON.stringify(historyData));
+        }
+
+        function showHistory() {
+            document.getElementById('menu').classList.add('hidden');
+            document.getElementById('history-page').classList.remove('hidden');
+            
+            let historyStr = localStorage.getItem('advokat_history');
+            let container = document.getElementById('history-container');
+            
+            if (!historyStr || JSON.parse(historyStr).length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #8e8e93; margin-top: 30px;">История пуста. Пройдите хотя бы один тест.</p>';
+                return;
+            }
+            
+            let data = JSON.parse(historyStr);
+            let html = '';
+            data.forEach(item => {
+                let color = item.accuracy >= 80 ? '#34c759' : (item.accuracy >= 50 ? '#ff9500' : '#ff3b30');
+                html += `
+                    <div class="history-card" style="border-left-color: ${color}">
+                        <div class="history-date">${item.date}</div>
+                        <div style="font-weight: bold; margin-bottom: 5px;">${item.mode}</div>
+                        <div>Верно: <b>${item.correct} из ${item.total}</b> (<span style="color: ${color}">${item.accuracy}%</span>)</div>
+                    </div>
+                `;
+            });
+            container.innerHTML = html;
+        }
+
+        function hideHistory() {
+            document.getElementById('history-page').classList.add('hidden');
+            document.getElementById('menu').classList.remove('hidden');
+        }
+
+        function clearHistory() {
+            if(confirm("Удалить всю статистику?")) {
+                localStorage.removeItem('advokat_history');
+                showHistory();
+            }
+        }
+        
+        function finishBlock() {
+            document.getElementById('quiz').classList.add('hidden');
+            document.getElementById('results').classList.remove('hidden');
+            document.getElementById('results-title').innerText = "СРЕЗ РЕЗУЛЬТАТОВ БЛОКА";
+            
+            let accuracy = (correctCount / questionsPassedInBlock) * 100;
+            document.getElementById('result-text').innerHTML =
+                `Пройдено вопросов: <b>${questionsPassedInBlock}</b><br>` +
+                `Верных ответов: <b>${correctCount}</b> (${accuracy.toFixed(1)}%)`;
+                
+            renderSessionGrid(); 
+            renderErrors(errors);
+            saveSessionToStorage(questionsPassedInBlock, correctCount);
+            
+            const fixBtn = document.getElementById('fix-errors-btn');
+            if (errors.length > 0) {
+                fixBtn.classList.remove('hidden');
+            } else {
+                fixBtn.classList.add('hidden');
+            }
+            
+            if (currentQuestionIndex < examPool.length - 1 && currentMode !== 'error_fixing') {
+                const continueBtn = document.createElement('button');
+                continueBtn.className = 'btn btn-success';
+                continueBtn.style.marginTop = '10px';
+                continueBtn.innerText = 'Продолжить следующие вопросы';
+                continueBtn.onclick = () => {
+                    document.getElementById('results').appendChild(continueBtn).remove();
+                    questionsPassedInBlock = 0;
+                    correctCount = 0;
+                    errors = [];
+                    answersHistory = {}; 
+                    currentQuestionIndex++;
+                    initQuizUI();
+                    currentQuestionIndex--;
+                    nextQuestion();
+                };
+                document.getElementById('results').appendChild(continueBtn);
+            }
+        }
+        
+        function finishExam(timeout) {
+            if (examTimer) clearInterval(examTimer);
+            document.getElementById('quiz').classList.add('hidden');
+            document.getElementById('results').classList.remove('hidden');
+            document.getElementById('results-title').innerText = currentMode === 'exam' ? "ИТОГИ ЭКЗАМЕНА" : "ИТОГИ УСЕЧЕННОГО ЭКЗАМЕНА";
+            
+            let timeSpent = Math.floor((Date.now() - startTime) / 1000);
+            let m = Math.floor(timeSpent / 60);
+            let s = timeSpent % 60;
+            let accuracy = (correctCount / examPool.length) * 100;
+            
+            let resultHTML = `Общее время: <b>${m} мин ${s} сек.</b><br><br>`;
+            resultHTML += `Набрано баллов: <b>${correctCount} из ${examPool.length}</b> (${accuracy.toFixed(1)}%)<br>`;
+            if (timeout) resultHTML += `<br><span style="color:red; font-weight:bold;">ВРЕМЯ ВЫШЛО! 60 минут истекли.</span>`;
+            
+            document.getElementById('result-text').innerHTML = resultHTML;
+            
+            renderSessionGrid();
+            renderErrors(errors);
+            saveSessionToStorage(examPool.length, correctCount);
+            
+            const fixBtn = document.getElementById('fix-errors-btn');
+            if (errors.length > 0) {
+                fixBtn.classList.remove('hidden');
+            } else {
+                fixBtn.classList.add('hidden');
+            }
+        }
+        
+        function renderErrors(errArray) {
+            if (errArray.length === 0) {
+                document.getElementById('errors-container').innerHTML = '';
+                return;
+            }
+            let errorsHTML = `<h3 style="margin-top: 30px;">Разбор ошибок:</h3>`;
+            errArray.forEach(q => {
+                errorsHTML += `<div class="error-breakdown" id="error-block-${q.task_number}">`;
+                errorsHTML += `<strong>Задание ${q.task_number}:</strong> Правильный ответ:<br>`;
+                let sortedCorrectAnswers = [...q.correct_answers].sort((a, b) => a - b);
+                sortedCorrectAnswers.forEach(ans => {
+                    errorsHTML += `<div class="correct-answer-item">${ans}. ${q.options[ans - 1]}</div>`;
+                });
+                errorsHTML += `</div>`;
+            });
+            document.getElementById('errors-container').innerHTML = errorsHTML;
+        }
+    </script>
+    
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js')
+                    .catch(error => { console.log('Ошибка SW:', error); });
+            });
+        }
+    </script>
+</body>
+</html>
