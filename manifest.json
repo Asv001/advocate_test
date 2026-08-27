@@ -1,13 +1,19 @@
 {
   "name": "Экзамен Адвоката",
   "short_name": "Адвокат",
+  "description": "Тренажер для сдачи квалификационного экзамена",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#007aff",
+  "background_color": "#f2f2f7",
+  "theme_color": "#f2f2f7",
   "icons": [
     {
-      "src": "https://cdn-icons-png.flaticon.com/512/932/932212.png",
+      "src": "icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icon-512.png",
       "sizes": "512x512",
       "type": "image/png"
     }
