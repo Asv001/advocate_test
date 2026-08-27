@@ -77,6 +77,10 @@
             <h3>Меню паузы</h3>
             <button class="btn btn-outline" onclick="closeHomeMenu()">▶ Продолжить тест</button>
             <button class="btn btn-success" onclick="saveAndExit()">💾 Сохранить и выйти</button>
+            
+            <!-- ВОТ ЭТА НОВАЯ КНОПКА -->
+            <button class="btn btn-outline" style="border-color: #8e8e93; color: #8e8e93;" onclick="forceUpdateApp()">🔄 Обновить приложение</button>
+            
             <button class="btn btn-danger" onclick="exitWithoutSaving()">🚪 Выйти без сохранения</button>
         </div>
     </div>
@@ -190,16 +194,26 @@
             }
         }
 
-        // --- ЛОГИКА "ПОТЯНУТЬ ВНИЗ ДЛЯ ОБНОВЛЕНИЯ" ---
+                // --- ЛОГИКА "ПОТЯНУТЬ ВНИЗ ДЛЯ ОБНОВЛЕНИЯ" (ИСПРАВЛЕННАЯ) ---
         let touchStartY = 0;
-        let touchEndY = 0;
 
-        // Фиксируем, где палец коснулся экрана
         document.addEventListener('touchstart', e => {
-            // Срабатывает только если мы находимся в самом верху страницы
-            if (window.scrollY === 0) {
+            if (window.scrollY <= 5) {
                 touchStartY = e.changedTouches[0].screenY;
             }
+        }, {passive: true});
+
+        document.addEventListener('touchend', e => {
+            if (window.scrollY <= 5 && touchStartY > 0) {
+                let touchEndY = e.changedTouches[0].screenY;
+                
+                // Проверяем длину свайпа
+                if (touchEndY - touchStartY > 120) {
+                    forceUpdateApp();
+                }
+            }
+            // ВАЖНО: Всегда обнуляем старт при отпускании пальца!
+            touchStartY = 0; 
         }, {passive: true});
 
         // Фиксируем, где палец оторвался от экрана
