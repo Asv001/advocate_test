@@ -8,14 +8,11 @@
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#f2f2f7">
 
-    <!-- Специфичные теги для iOS -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Адвокат">
-    <!-- Иконка для домашнего экрана iPhone -->
     <link rel="apple-touch-icon" href="icon-192.png">
     
-    <!-- Подключаем локальный файл парсера YAML -->
     <script src="js-yaml.min.js"></script>
 
     <style>
@@ -29,19 +26,20 @@
         .menu-section { background: #fff; padding: 18px; border-radius: 14px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
         .menu-input { width: 100%; padding: 12px; margin-top: 8px; margin-bottom: 12px; border: 1px solid #c7c7cc; border-radius: 8px; font-size: 16px; box-sizing: border-box; }
         #question-container { background: #fff; padding: 20px; border-radius: 14px; box-shadow: 0 2px 8px rgba(0,0,0,0.04); margin-bottom: 20px; }
-        .stats { font-size: 15px; color: #8e8e93; margin-bottom: 15px; font-weight: 500; text-align: center; }
         
-        /* Стили подсказки к вопросу */
+        /* ШАПКА ТЕСТА (Кнопка домой + Таймер) */
+        .quiz-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 15px; }
+        .home-btn { background: #fff; border: none; font-size: 20px; width: 44px; height: 44px; border-radius: 12px; cursor: pointer; box-shadow: 0 1px 3px rgba(0,0,0,0.05); display: flex; align-items: center; justify-content: center; }
+        .home-btn:active { opacity: 0.6; }
+        .stats { font-size: 14px; color: #8e8e93; font-weight: 500; text-align: right; line-height: 1.4; flex: 1; padding-left: 10px; }
+        
         .choice-prompt { font-size: 15px; color: #8e8e93; margin-top: -10px; margin-bottom: 15px; font-weight: 500; }
-
-        /* Кнопки ответов */
         .option-button { display: block; background: #f2f2f7; padding: 16px; margin-bottom: 10px; border-radius: 12px; border: 2px solid transparent; font-size: 16px; line-height: 1.4; transition: all 0.2s ease; cursor: pointer; -webkit-tap-highlight-color: transparent; }
         .option-button.selected { background-color: #007aff; color: #fff; border-color: #007aff; }
         
-        /* ЦВЕТА ПРОВЕРКИ (ЗЕЛЕНЫЙ И КРАСНЫЙ) */
-        .option-button.correct-choice { background-color: #34c759; color: #fff; border-color: #34c759; } /* Правильно выбранный */
-        .option-button.wrong-choice { background-color: #ff3b30; color: #fff; border-color: #ff3b30; } /* Ошибочно выбранный */
-        .option-button.missed-choice { background-color: #e5f8ed; border-color: #34c759; color: #1e8749; } /* Забыли выбрать */
+        .option-button.correct-choice { background-color: #34c759; color: #fff; border-color: #34c759; } 
+        .option-button.wrong-choice { background-color: #ff3b30; color: #fff; border-color: #ff3b30; } 
+        .option-button.missed-choice { background-color: #e5f8ed; border-color: #34c759; color: #1e8749; } 
 
         .option-button strong { margin-right: 8px; }
         .feedback { padding: 15px; border-radius: 10px; margin-bottom: 15px; font-weight: 600; text-align: center; }
@@ -51,9 +49,15 @@
         .correct-answer-item { color: #34c759; margin-top: 8px; font-weight: 600; font-size: 15px;}
         .hidden { display: none !important; }
 
-        /* Кнопки навигации Вперед/Назад */
         .nav-buttons { display: flex; gap: 10px; width: 100%; }
         .nav-buttons .btn { flex: 1; margin-bottom: 0; }
+
+        /* СЕТКА СТАТИСТИКИ СЕССИИ */
+        .session-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(40px, 1fr)); gap: 8px; margin: 15px 0; }
+        .grid-item { display: flex; justify-content: center; align-items: center; height: 40px; border-radius: 8px; font-weight: bold; font-size: 14px; color: white; }
+        .grid-item.correct { background-color: #34c759; }
+        .grid-item.incorrect { background-color: #ff3b30; }
+        .grid-item.unanswered { background-color: #e5e5ea; color: #8e8e93; }
     </style>
 </head>
 <body>
@@ -82,33 +86,43 @@
         </div>
     </div>
     
+    <!-- БЛОК ВОПРОСА -->
     <div id="quiz" class="hidden">
-        <div class="stats" id="stats-bar"></div>
+        <!-- Новая шапка с кнопкой Домой и статистикой -->
+        <div class="quiz-header">
+            <button class="home-btn" onclick="returnToMenu()" title="Вернуться в меню">🏠</button>
+            <div class="stats" id="stats-bar"></div>
+        </div>
+        
         <div id="training-feedback" class="feedback hidden"></div>
         
         <div id="question-container">
             <h3 id="question-text" style="margin-top: 0;"></h3>
-            <div id="choice-prompt" class="choice-prompt"></div> <!-- Подсказка о выборе -->
+            <div id="choice-prompt" class="choice-prompt"></div>
             <div id="options-container" style="margin-top: 20px;"></div>
         </div>
         
         <button class="btn" id="submit-btn" onclick="submitAnswer()">Ответить</button>
         
-        <!-- Блок кнопок Вперед/Назад (Скрыт до ответа) -->
         <div class="nav-buttons hidden" id="nav-btns-container">
             <button class="btn btn-secondary" id="prev-btn" onclick="prevQuestion()">Назад</button>
             <button class="btn btn-success" id="next-btn" onclick="nextQuestion()">Вперед</button>
         </div>
     </div>
     
+    <!-- ИТОГИ -->
     <div id="results" class="hidden">
         <h2 id="results-title" style="text-align: center;">ИТОГИ</h2>
+        
         <div class="menu-section">
-            <p id="result-text" style="font-size: 16px; line-height: 1.6;"></p>
+            <p id="result-text" style="font-size: 16px; line-height: 1.6; margin-bottom: 10px;"></p>
+            <!-- Контейнер для сетки результатов -->
+            <div id="session-grid-container"></div>
         </div>
+        
         <div id="errors-container"></div>
         <button class="btn hidden" id="fix-errors-btn" style="margin-top: 20px;" onclick="startErrorTraining()">Закрепить ошибки</button>
-        <button class="btn btn-secondary" onclick="location.reload()" style="margin-top: 10px;">Вернуться в меню</button>
+        <button class="btn btn-secondary" onclick="returnToMenu(true)" style="margin-top: 10px;">Вернуться в меню</button>
     </div>
 
     <script>
@@ -121,7 +135,7 @@
         let examTimer;
         let currentMode = '';
         let questionsPassedInBlock = 0;
-        let answersHistory = {}; // Хранилище ответов для кнопки "Назад"
+        let answersHistory = {}; 
         
         fetch('questionnaire.yaml')
             .then(res => res.text())
@@ -184,20 +198,30 @@
             correctCount = 0;
             errors = [];
             questionsPassedInBlock = 0;
-            answersHistory = {}; // Сбрасываем историю
+            answersHistory = {}; 
             startTime = Date.now();
             showQuestion();
+        }
+
+        // Новая функция возврата в меню
+        function returnToMenu(force = false) {
+            if (force || confirm("Вы уверены, что хотите прервать тестирование? Прогресс текущего блока будет потерян.")) {
+                if (examTimer) clearInterval(examTimer);
+                document.getElementById('quiz').classList.add('hidden');
+                document.getElementById('results').classList.add('hidden');
+                document.getElementById('menu').classList.remove('hidden');
+            }
         }
         
         function updateStats(elapsedSeconds) {
             let elM = Math.floor(elapsedSeconds / 60);
             let elS = elapsedSeconds % 60;
-            let statsText = `⏳ Прошло: ${elM} мин ${elS} сек<br>`;
+            let statsText = `⏳ ${elM} мин ${elS} сек<br>`;
             if (currentMode === 'exam') {
                 let rem = Math.max(0, 3600 - elapsedSeconds);
                 let remM = Math.floor(rem / 60);
                 let remS = rem % 60;
-                statsText = `⏳ Прошло: ${elM} мин ${elS} сек | Осталось: ${remM} мин ${remS} сек<br>`;
+                statsText = `⏳ ${elM}м ${elS}с | Ост: ${remM}м ${remS}с<br>`;
             }
             statsText += `📝 Вопрос: ${currentQuestionIndex + 1} из ${examPool.length}`;
             document.getElementById('stats-bar').innerHTML = statsText;
@@ -212,7 +236,6 @@
             const q = examPool[currentQuestionIndex];
             document.getElementById('question-text').innerText = `Задание ${q.task_number}: ${q.question}`;
             
-            // Подсказка количества вариантов
             document.getElementById('choice-prompt').innerText = q.multiple_choice 
                 ? "💡 Выберите несколько вариантов ответа:" 
                 : "💡 Выберите один вариант ответа:";
@@ -226,7 +249,6 @@
                 btn.innerHTML = `<strong>${index + 1}.</strong> ${opt}`;
                 btn.dataset.value = index + 1;
                 
-                // Разрешаем кликать, только если вопрос еще не отвечен
                 if (!answersHistory[currentQuestionIndex]) {
                     btn.onclick = function() {
                         if (!q.multiple_choice) {
@@ -238,7 +260,6 @@
                 optionsDiv.appendChild(btn);
             });
 
-            // Если мы вернулись к отвеченному вопросу (кнопкой Назад)
             if (answersHistory[currentQuestionIndex] && currentMode === 'training') {
                 document.getElementById('submit-btn').classList.add('hidden');
                 restoreAnswerState();
@@ -257,23 +278,21 @@
             const correctAnswers = [...q.correct_answers].sort((a, b) => a - b);
             const isCorrect = JSON.stringify(userAnswers) === JSON.stringify(correctAnswers);
             
-            // Сохраняем в статистику и историю ТОЛЬКО при первом ответе на вопрос
             if (!answersHistory[currentQuestionIndex]) {
                 if (isCorrect) correctCount++;
                 else errors.push(q);
                 questionsPassedInBlock++;
-                answersHistory[currentQuestionIndex] = { userAnswers, isCorrect };
+                answersHistory[currentQuestionIndex] = { userAnswers, isCorrect, taskNumber: q.task_number };
             }
             
             if (currentMode === 'training') {
                 document.getElementById('submit-btn').classList.add('hidden');
                 restoreAnswerState();
             } else {
-                nextQuestion(); // В экзамене идем дальше без показа ошибок
+                nextQuestion(); 
             }
         }
         
-        // Функция для отрисовки правильных/неправильных цветов и кнопок навигации
         function restoreAnswerState() {
             const history = answersHistory[currentQuestionIndex];
             if (!history) return;
@@ -281,7 +300,6 @@
             const q = examPool[currentQuestionIndex];
             const correctAnswers = q.correct_answers;
             
-            // Раскрашиваем варианты
             const buttons = document.querySelectorAll('.option-button');
             buttons.forEach(btn => {
                 btn.onclick = null;
@@ -293,15 +311,14 @@
                 const isActuallyCorrect = correctAnswers.includes(val);
 
                 if (isUserSelected && isActuallyCorrect) {
-                    btn.classList.add('correct-choice'); // Зеленый
+                    btn.classList.add('correct-choice'); 
                 } else if (isUserSelected && !isActuallyCorrect) {
-                    btn.classList.add('wrong-choice'); // Красный
+                    btn.classList.add('wrong-choice'); 
                 } else if (!isUserSelected && isActuallyCorrect) {
-                    btn.classList.add('missed-choice'); // Зеленая рамка (пропущенный правильный)
+                    btn.classList.add('missed-choice'); 
                 }
             });
 
-            // Показываем плашку Верно/Неверно
             const fbDiv = document.getElementById('training-feedback');
             fbDiv.classList.remove('hidden', 'correct', 'incorrect');
             if (history.isCorrect) {
@@ -312,17 +329,14 @@
                 fbDiv.innerText = "❌ Ответ неверный или неполный. (Балл: 0)";
             }
 
-            // Настраиваем кнопки Вперед / Назад
             const navContainer = document.getElementById('nav-btns-container');
             navContainer.classList.remove('hidden');
             
             const prevBtn = document.getElementById('prev-btn');
             const nextBtn = document.getElementById('next-btn');
             
-            // Прячем кнопку "Назад", если мы на самом первом вопросе
             prevBtn.style.display = (currentQuestionIndex === 0) ? 'none' : 'block';
 
-            // Проверяем, нужно ли завершать блок
             let maxAnsweredIndex = Math.max(...Object.keys(answersHistory).map(Number));
             let isBlockEnd = (questionsPassedInBlock >= 10 || currentQuestionIndex === examPool.length - 1);
             
@@ -350,15 +364,46 @@
                 finishExam(false);
             }
         }
+
+        // Функция генерации карты ответов (сетки)
+        function renderSessionGrid() {
+            let gridHTML = `<h4 style="margin: 20px 0 10px; color:#666;">Карта ответов:</h4><div class="session-grid">`;
+            
+            // Если тренировка - показываем только те, что ответили. Если экзамен - показываем весь пул
+            let limit = (currentMode === 'training') ? Object.keys(answersHistory).length : examPool.length;
+            
+            // Массив индексов отвеченных вопросов
+            let answeredIndices = Object.keys(answersHistory).map(Number).sort((a,b)=>a-b);
+
+            for(let i = 0; i < limit; i++) {
+                let qIndex = (currentMode === 'training') ? answeredIndices[i] : i;
+                if (qIndex === undefined) continue;
+                
+                let q = examPool[qIndex];
+                let history = answersHistory[qIndex];
+                
+                let statusClass = 'unanswered';
+                if(history) {
+                    statusClass = history.isCorrect ? 'correct' : 'incorrect';
+                }
+                
+                gridHTML += `<div class="grid-item ${statusClass}">${q.task_number}</div>`;
+            }
+            gridHTML += `</div>`;
+            document.getElementById('session-grid-container').innerHTML = gridHTML;
+        }
         
         function finishBlock() {
             document.getElementById('quiz').classList.add('hidden');
             document.getElementById('results').classList.remove('hidden');
             document.getElementById('results-title').innerText = "СРЕЗ РЕЗУЛЬТАТОВ БЛОКА";
+            
             let accuracy = (correctCount / questionsPassedInBlock) * 100;
             document.getElementById('result-text').innerHTML =
                 `Пройдено вопросов: <b>${questionsPassedInBlock}</b><br>` +
                 `Верных ответов: <b>${correctCount}</b> (${accuracy.toFixed(1)}%)`;
+                
+            renderSessionGrid(); // Отрисовка карты
             renderErrors(errors);
             
             const fixBtn = document.getElementById('fix-errors-btn');
@@ -380,7 +425,7 @@
                     questionsPassedInBlock = 0;
                     correctCount = 0;
                     errors = [];
-                    answersHistory = {}; // Очищаем историю для нового блока
+                    answersHistory = {}; 
                     currentQuestionIndex++;
                     initQuizUI();
                     currentQuestionIndex--;
@@ -395,14 +440,19 @@
             document.getElementById('quiz').classList.add('hidden');
             document.getElementById('results').classList.remove('hidden');
             document.getElementById('results-title').innerText = currentMode === 'exam' ? "ИТОГИ ЭКЗАМЕНА" : "ИТОГИ УСЕЧЕННОГО ЭКЗАМЕНА";
+            
             let timeSpent = Math.floor((Date.now() - startTime) / 1000);
             let m = Math.floor(timeSpent / 60);
             let s = timeSpent % 60;
             let accuracy = (correctCount / examPool.length) * 100;
+            
             let resultHTML = `Общее время: <b>${m} мин ${s} сек.</b><br><br>`;
             resultHTML += `Набрано баллов: <b>${correctCount} из ${examPool.length}</b> (${accuracy.toFixed(1)}%)<br>`;
             if (timeout) resultHTML += `<br><span style="color:red; font-weight:bold;">ВРЕМЯ ВЫШЛО! 60 минут истекли.</span>`;
+            
             document.getElementById('result-text').innerHTML = resultHTML;
+            
+            renderSessionGrid(); // Отрисовка карты
             renderErrors(errors);
             
             const fixBtn = document.getElementById('fix-errors-btn');
