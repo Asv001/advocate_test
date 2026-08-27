@@ -12,9 +12,8 @@
     <meta name="apple-mobile-web-app-title" content="Адвокат">
     <link rel="apple-touch-icon" href="icon-192.png">
     
-    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script> -->
     <script src="js-yaml.min.js"></script>
-    
+
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 15px; max-width: 600px; margin: 0 auto; background-color: #f2f2f7; color: #1c1c1e; }
         h1, h2, h3 { color: #000; }
@@ -60,10 +59,15 @@
         .grid-item.incorrect:active { transform: scale(0.9); }
         .grid-item.unanswered { background-color: #e5e5ea; color: #8e8e93; }
 
-        .history-card { background: #fff; padding: 15px; border-radius: 10px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); font-size: 15px; line-height: 1.4; border-left: 5px solid #007aff;}
+        /* Стили для карточек истории */
+        .history-card { background: #fff; padding: 15px; border-radius: 10px; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); font-size: 15px; line-height: 1.4; border-left: 5px solid #007aff; cursor: pointer; transition: 0.2s;}
+        .history-card:active { transform: scale(0.98); background: #f9f9f9; }
         .history-date { font-size: 13px; color: #8e8e93; margin-bottom: 5px; }
+        
+        /* Мини-сетка внутри истории */
+        .mini-grid { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+        .mini-badge { padding: 3px 6px; border-radius: 4px; font-size: 11px; font-weight: bold; color: white; }
 
-        /* Всплывающее меню (Модальное окно) */
         .modal-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(2px); display: flex; justify-content: center; align-items: center; z-index: 9999; }
         .modal-content { background: #fff; padding: 25px; border-radius: 16px; width: 90%; max-width: 350px; text-align: center; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
         .modal-content h3 { margin-top: 0; margin-bottom: 20px; font-size: 20px; }
@@ -71,16 +75,11 @@
 </head>
 <body>
     
-    <!-- Всплывающее меню под кнопкой "Домик" -->
     <div id="home-modal" class="modal-overlay hidden">
         <div class="modal-content">
             <h3>Меню паузы</h3>
             <button class="btn btn-outline" onclick="closeHomeMenu()">▶ Продолжить тест</button>
             <button class="btn btn-success" onclick="saveAndExit()">💾 Сохранить и выйти</button>
-            
-            <!-- ВОТ ЭТА НОВАЯ КНОПКА -->
-            <button class="btn btn-outline" style="border-color: #8e8e93; color: #8e8e93;" onclick="forceUpdateApp()">🔄 Обновить приложение</button>
-            
             <button class="btn btn-danger" onclick="exitWithoutSaving()">🚪 Выйти без сохранения</button>
         </div>
     </div>
@@ -89,7 +88,6 @@
     <div id="menu">
         <h2 style="text-align: center; margin-bottom: 25px;">ГЛАВНОЕ МЕНЮ</h2>
         
-        <!-- Кнопка продолжения сессии (Скрыта, если нет сохранений) -->
         <button class="btn btn-success hidden" id="resume-btn" onclick="resumeSavedSession()" style="margin-bottom: 15px;">▶ Продолжить сохраненную сессию</button>
         
         <button class="btn btn-outline" style="margin-bottom: 25px;" onclick="showHistory()">📊 Моя статистика</button>
@@ -164,69 +162,6 @@
     </div>
 
     <script>
-        // Экстренная очистка кэша SW для надежного обновления
-        // ВНИМАНИЕ: Оставьте этот код для отладки. Когда всё будет работать идеально,
-        // этот блок лучше убрать, чтобы приложение работало без интернета.
-        // if ('serviceWorker' in navigator) {
-        //     navigator.serviceWorker.getRegistrations().then(function(registrations) {
-        //         for(let registration of registrations) registration.unregister();
-        //     });
-        //     caches.keys().then(keys => keys.forEach(key => caches.delete(key)));
-        // }
-        
-        // --- ФУНКЦИЯ ОБНОВЛЕНИЯ ПРИЛОЖЕНИЯ (Очистка кэша) ---
-        function forceUpdateApp() {
-            // Окошко с вопросом (Статистика не удалится)
-            if (confirm("Обновить приложение? \n\n(Для загрузки новых вопросов нужен интернет. Ваша статистика и прогресс НЕ удалятся!)")) {
-                if ('serviceWorker' in navigator) {
-                    navigator.serviceWorker.getRegistrations().then(function(registrations) {
-                        for(let registration of registrations) registration.unregister();
-                    });
-                    caches.keys().then(keys => {
-                        Promise.all(keys.map(key => caches.delete(key))).then(() => {
-                            alert("Готово! Приложение обновлено.");
-                            window.location.reload(true); // Перезагружаем страницу
-                        });
-                    });
-                } else {
-                    window.location.reload(true);
-                }
-            }
-        }
-
-        // // --- ЛОГИКА "ПОТЯНУТЬ ВНИЗ ДЛЯ ОБНОВЛЕНИЯ" (ИСПРАВЛЕННАЯ) ---
-        // let touchStartY = 0;
-
-        // document.addEventListener('touchstart', e => {
-        //     if (window.scrollY <= 5) {
-        //         touchStartY = e.changedTouches[0].screenY;
-        //     }
-        // }, {passive: true});
-
-        // document.addEventListener('touchend', e => {
-        //     if (window.scrollY <= 5 && touchStartY > 0) {
-        //         let touchEndY = e.changedTouches[0].screenY;
-                
-        //         // Проверяем длину свайпа
-        //         if (touchEndY - touchStartY > 120) {
-        //             forceUpdateApp();
-        //         }
-        //     }
-        //     // ВАЖНО: Всегда обнуляем старт при отпускании пальца!
-        //     touchStartY = 0; 
-        // }, {passive: true});
-
-        // // Фиксируем, где палец оторвался от экрана
-        // document.addEventListener('touchend', e => {
-        //     if (window.scrollY === 0) {
-        //         touchEndY = e.changedTouches[0].screenY;
-        //         // Если мы протащили палец вниз больше чем на 150 пикселей
-        //         if (touchEndY - touchStartY > 150) {
-        //             forceUpdateApp();
-        //         }
-        //     }
-        // }, {passive: true});
-
         let allQuestions = [];
         let examPool = [];
         let currentQuestionIndex = 0;
@@ -238,7 +173,6 @@
         let questionsPassedInBlock = 0;
         let answersHistory = {}; 
         
-        // Хранилище для возврата к основной тренировке после исправления ошибок
         let mainTrainingState = null;
         
         // Загрузка
@@ -258,7 +192,7 @@
                 document.getElementById('trunc-end').placeholder = `До (макс. ${totalQs})`;
                 document.getElementById('trunc-end').max = totalQs;
                 
-                checkSavedSession(); // Проверяем, есть ли сохранения при старте
+                checkSavedSession(); 
             })
             .catch(err => alert('Ошибка загрузки: ' + err.message));
             
@@ -282,7 +216,6 @@
                 elapsed: Math.floor((Date.now() - startTime) / 1000)
             };
             
-            // Если выходим во время работы над ошибками, сохраняем основную тренировку
             if (currentMode === 'error_fixing' && mainTrainingState) {
                 stateToSave = {
                     mode: mainTrainingState.mode,
@@ -343,7 +276,7 @@
                     updateStats(elapsed);
                 }, 1000);
             }
-            initQuizUI(true); // Запуск без сброса переменных
+            initQuizUI(true); 
         }
 
         // ----- ЛОГИКА ТЕСТА -----
@@ -360,15 +293,12 @@
 
         function startErrorTraining() {
             if (errors.length > 0) {
-                // СОХРАНЯЕМ ТЕКУЩИЙ ПРОГРЕСС ТРЕНИРОВКИ
                 mainTrainingState = {
                     pool: examPool,
                     index: currentQuestionIndex,
                     correctCount: correctCount,
                     mode: currentMode
                 };
-                
-                // Переключаем в режим ошибок
                 currentMode = 'error_fixing';
                 examPool = [...errors];
                 initQuizUI();
@@ -557,17 +487,17 @@
             if (errorElement) errorElement.scrollIntoView({ behavior: 'smooth', block: 'start' });
         }
 
-        function renderSessionGrid() {
+        function renderSessionGrid(historyDataToRender = answersHistory, poolToRender = examPool, modeToRender = currentMode) {
             let gridHTML = `<div class="session-grid">`;
-            let limit = (currentMode === 'training' || currentMode === 'error_fixing') ? Object.keys(answersHistory).length : examPool.length;
-            let answeredIndices = Object.keys(answersHistory).map(Number).sort((a,b)=>a-b);
+            let limit = (modeToRender === 'training' || modeToRender === 'error_fixing') ? Object.keys(historyDataToRender).length : poolToRender.length;
+            let answeredIndices = Object.keys(historyDataToRender).map(Number).sort((a,b)=>a-b);
 
             for(let i = 0; i < limit; i++) {
-                let qIndex = (currentMode === 'training' || currentMode === 'error_fixing') ? answeredIndices[i] : i;
+                let qIndex = (modeToRender === 'training' || modeToRender === 'error_fixing') ? answeredIndices[i] : i;
                 if (qIndex === undefined) continue;
                 
-                let q = examPool[qIndex];
-                let history = answersHistory[qIndex];
+                let q = poolToRender[qIndex];
+                let history = historyDataToRender[qIndex];
                 let statusClass = 'unanswered';
                 let onclickCode = '';
                 
@@ -581,7 +511,8 @@
             document.getElementById('session-grid-container').innerHTML = gridHTML;
         }
 
-        function saveSessionToStorage(total, correct) {
+        // ДОБАВЛЕНО СОХРАНЕНИЕ answersHistory
+        function saveSessionToStorage(total, correct, historyObj) {
             let historyStr = localStorage.getItem('advokat_history');
             let historyData = historyStr ? JSON.parse(historyStr) : [];
             let modeName = "Тренировка";
@@ -594,7 +525,8 @@
                 mode: modeName,
                 total: total,
                 correct: correct,
-                accuracy: Math.round((correct / total) * 100)
+                accuracy: Math.round((correct / total) * 100),
+                detailedHistory: JSON.parse(JSON.stringify(historyObj)) // Сохраняем ответы для проваливания
             });
             if (historyData.length > 30) historyData.pop(); 
             localStorage.setItem('advokat_history', JSON.stringify(historyData));
@@ -612,15 +544,76 @@
             }
             let data = JSON.parse(historyStr);
             let html = '';
-            data.forEach(item => {
+            data.forEach((item, index) => {
                 let color = item.accuracy >= 80 ? '#34c759' : (item.accuracy >= 50 ? '#ff9500' : '#ff3b30');
-                html += `<div class="history-card" style="border-left-color: ${color}">
+                
+                // Генерируем мини-сетку
+                let miniGrid = '';
+                if (item.detailedHistory) {
+                    miniGrid = '<div class="mini-grid">';
+                    Object.values(item.detailedHistory).forEach(ans => {
+                        let bg = ans.isCorrect ? '#34c759' : '#ff3b30';
+                        miniGrid += `<div class="mini-badge" style="background:${bg};">${ans.taskNumber}</div>`;
+                    });
+                    miniGrid += '</div>';
+                }
+
+                html += `<div class="history-card" style="border-left-color: ${color}" onclick="viewPastSession(${index})">
                         <div class="history-date">${item.date}</div>
                         <div style="font-weight: bold; margin-bottom: 5px;">${item.mode}</div>
                         <div>Верно: <b>${item.correct} из ${item.total}</b> (<span style="color: ${color}">${item.accuracy}%</span>)</div>
+                        ${miniGrid}
                     </div>`;
             });
             container.innerHTML = html;
+        }
+
+        // НОВАЯ ФУНКЦИЯ ДЛЯ ПРОСМОТРА ПРОШЛОЙ СЕССИИ
+        function viewPastSession(index) {
+            let data = JSON.parse(localStorage.getItem('advokat_history'));
+            let session = data[index];
+            
+            if (!session.detailedHistory) {
+                alert("Детальная статистика для этой сессии не сохранилась (старая версия).");
+                return;
+            }
+
+            document.getElementById('history-page').classList.add('hidden');
+            document.getElementById('results').classList.remove('hidden');
+            document.getElementById('results-title').innerText = "ДЕТАЛИ СЕССИИ";
+
+            document.getElementById('result-text').innerHTML =
+                `<div style="color:#8e8e93; font-size:14px; margin-bottom:10px;">${session.date} | ${session.mode}</div>` +
+                `Пройдено вопросов: <b>${session.total}</b><br>` +
+                `Верных ответов: <b>${session.correct}</b> (${session.accuracy}%)`;
+
+            // Реконструируем пул и ошибки из истории
+            let pastPool = [];
+            let pastErrors = [];
+            
+            Object.values(session.detailedHistory).forEach(ans => {
+                let fullQ = allQuestions.find(q => q.task_number === ans.taskNumber);
+                if (fullQ) {
+                    pastPool.push(fullQ);
+                    if (!ans.isCorrect) pastErrors.push(fullQ);
+                }
+            });
+
+            // Отрисовываем сетку и ошибки
+            renderSessionGrid(session.detailedHistory, pastPool, 'training'); // Используем логику training, т.к. показываем только то, что решали
+            renderErrors(pastErrors);
+
+            // Кнопка возврата в историю
+            const actionsDiv = document.getElementById('results-actions');
+            actionsDiv.innerHTML = ''; 
+            let backBtn = document.createElement('button');
+            backBtn.className = 'btn btn-secondary';
+            backBtn.innerText = '⬅ Вернуться к списку';
+            backBtn.onclick = () => {
+                document.getElementById('results').classList.add('hidden');
+                document.getElementById('history-page').classList.remove('hidden');
+            };
+            actionsDiv.appendChild(backBtn);
         }
 
         function hideHistory() {
@@ -647,24 +640,19 @@
                 
             renderSessionGrid(); 
             renderErrors(errors);
-            saveSessionToStorage(questionsPassedInBlock, correctCount);
+            saveSessionToStorage(questionsPassedInBlock, correctCount, answersHistory); // ПЕРЕДАЕМ ИСТОРИЮ
             
             const actionsDiv = document.getElementById('results-actions');
-            actionsDiv.innerHTML = ''; // Очищаем старые кнопки
+            actionsDiv.innerHTML = ''; 
             
             if (currentMode === 'error_fixing') {
-                // МЫ В РЕЖИМЕ ОШИБОК -> ДАЕМ КНОПКУ ВОЗВРАТА В ОСНОВНУЮ ТРЕНИРОВКУ
-                                let btn = document.createElement('button');
+                let btn = document.createElement('button');
                 btn.className = 'btn btn-success';
                 btn.innerText = 'Вернуться к основной тренировке';
                 btn.onclick = () => {
-                    // Восстанавливаем сохраненный стейт
                     examPool = mainTrainingState.pool;
                     currentQuestionIndex = mainTrainingState.index + 1; 
-                    
-                    // ИСПРАВЛЕНИЕ: Начинаем новый блок с чистого листа!
-                    correctCount = 0; 
-                    
+                    correctCount = 0; // ИСПРАВЛЕН ТОТ САМЫЙ БАГ
                     currentMode = mainTrainingState.mode;
                     
                     questionsPassedInBlock = 0;
@@ -673,14 +661,13 @@
                     mainTrainingState = null;
                     
                     if (currentQuestionIndex < examPool.length) {
-                        initQuizUI(true); // Запускаем дальше без полного сброса
+                        initQuizUI(true); 
                     } else {
-                        finishExam(false); // Если вопросы закончились
+                        finishExam(false); 
                     }
                 };
                 actionsDiv.appendChild(btn);
             } else {
-                // МЫ В ОБЫЧНОЙ ТРЕНИРОВКЕ
                 if (errors.length > 0) {
                     let fixBtn = document.createElement('button');
                     fixBtn.className = 'btn btn-danger';
@@ -695,7 +682,7 @@
                     continueBtn.innerText = 'Продолжить следующие 10 вопросов';
                     continueBtn.onclick = () => {
                         questionsPassedInBlock = 0;
-                        correctCount = 0;
+                        correctCount = 0; // ИСПРАВЛЕН ТОТ САМЫЙ БАГ
                         errors = [];
                         answersHistory = {}; 
                         currentQuestionIndex++;
@@ -725,7 +712,7 @@
             
             renderSessionGrid();
             renderErrors(errors);
-            saveSessionToStorage(examPool.length, correctCount);
+            saveSessionToStorage(examPool.length, correctCount, answersHistory); // ПЕРЕДАЕМ ИСТОРИЮ
             
             const actionsDiv = document.getElementById('results-actions');
             actionsDiv.innerHTML = ''; 
