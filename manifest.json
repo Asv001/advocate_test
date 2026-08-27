@@ -1,0 +1,15 @@
+{
+  "name": "Экзамен Адвоката",
+  "short_name": "Адвокат",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#007aff",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/932/932212.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
