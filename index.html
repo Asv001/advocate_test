@@ -4,24 +4,21 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Экзамен Адвоката</title>
-    
+
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#f2f2f7">
-    
+
     <!-- Специфичные теги для iOS -->
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="Адвокат">
-    <!-- Иконка для домашнего экрана iPhone (создайте картинку 192x192 и положите рядом) -->
+    <!-- Иконка для домашнего экрана iPhone -->
     <link rel="apple-touch-icon" href="icon-192.png">
-
-    <!-- ВАЖНО: Рекомендую скачать этот файл и положить в папку, 
-         чтобы он гарантированно работал без интернета, но через SW мы закэшируем и CDN -->
-    <!--<script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script> -->
-    <script src="js-yaml.min.js"></script>
     
+    <!-- Подключаем локальный файл парсера YAML -->
+    <script src="js-yaml.min.js"></script>
+
     <style>
-        /* ВАШ CSS ОСТАЕТСЯ БЕЗ ИЗМЕНЕНИЙ */
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; padding: 15px; max-width: 600px; margin: 0 auto; background-color: #f2f2f7; color: #1c1c1e; }
         h1, h2, h3 { color: #000; }
         .btn { background-color: #007aff; color: white; border: none; padding: 16px; width: 100%; border-radius: 12px; font-size: 17px; font-weight: 600; margin-bottom: 12px; cursor: pointer; transition: 0.2s; }
@@ -45,7 +42,6 @@
     </style>
 </head>
 <body>
-    <!-- ВАШ HTML ОСТАЕТСЯ БЕЗ ИЗМЕНЕНИЙ (МЕНЮ, БЛОК ВОПРОСОВ И Т.Д.) -->
     <!-- ГЛАВНОЕ МЕНЮ -->
     <div id="menu">
         <h2 style="text-align: center; margin-bottom: 25px;">ГЛАВНОЕ МЕНЮ</h2>
@@ -92,12 +88,253 @@
         <button class="btn btn-secondary" onclick="location.reload()" style="margin-top: 10px;">Вернуться в меню</button>
     </div>
 
-    <!-- ВАШ JS ОСТАЕТСЯ БЕЗ ИЗМЕНЕНИЙ (я его скрыл для краткости, оставьте свой скрипт здесь) -->
+    <!-- ВЕРНУЛИ ВАШУ ЛОГИКУ JS -->
     <script>
-        // ... (Весь ваш код JS от let allQuestions = []; до конца) ...
+        let allQuestions = [];
+        let examPool = [];
+        let currentQuestionIndex = 0;
+        let correctCount = 0;
+        let errors = [];
+        let startTime;
+        let examTimer;
+        let currentMode = '';
+        let questionsPassedInBlock = 0;
+        
+        fetch('questionnaire.yaml')
+            .then(res => res.text())
+            .then(text => {
+                const data = jsyaml.load(text);
+                allQuestions = data.questions;
+                const totalQs = allQuestions.length;
+                const trainInput = document.getElementById('train-start');
+                trainInput.placeholder = `от 1 до ${totalQs}`;
+                trainInput.max = totalQs;
+                const truncStartInput = document.getElementById('trunc-start');
+                truncStartInput.placeholder = `От 1`;
+                truncStartInput.max = totalQs;
+                const truncEndInput = document.getElementById('trunc-end');
+                truncEndInput.placeholder = `До (макс. ${totalQs})`;
+                truncEndInput.max = totalQs;
+            })
+            .catch(err => alert('Ошибка загрузки. Проверьте, что файл questionnaire.yaml доступен.'));
+            
+        function startTraining(customPool = null) {
+            if (allQuestions.length === 0) return alert("Вопросы еще загружаются.");
+            currentMode = 'training';
+            if (customPool) {
+                examPool = customPool;
+            } else {
+                let startNum = parseInt(document.getElementById('train-start').value) || 1;
+                let startIndex = allQuestions.findIndex(q => q.task_number === startNum);
+                if (startIndex === -1) startIndex = 0;
+                examPool = allQuestions.slice(startIndex);
+            }
+            if (examPool.length === 0) return alert("Нет вопросов для отображения.");
+            initQuizUI();
+        }
+        
+        function startExam() {
+            if (allQuestions.length === 0) return alert("Вопросы еще загружаются.");
+            currentMode = 'exam';
+            examPool = [...allQuestions].sort(() => 0.5 - Math.random());
+            initQuizUI();
+            examTimer = setInterval(() => {
+                let elapsed = Math.floor((Date.now() - startTime) / 1000);
+                if (elapsed >= 3600) finishExam(true);
+                updateStats(elapsed);
+            }, 1000);
+        }
+        
+        function startTruncatedExam() {
+            if (allQuestions.length === 0) return alert("Вопросы еще загружаются.");
+            let s = parseInt(document.getElementById('trunc-start').value);
+            let e = parseInt(document.getElementById('trunc-end').value);
+            if (!s || !e || s > e) return alert("Введите корректный диапазон.");
+            currentMode = 'truncated';
+            examPool = allQuestions.filter(q => q.task_number >= s && q.task_number <= e).sort(() => 0.5 - Math.random());
+            if (examPool.length === 0) return alert("В этом диапазоне нет вопросов.");
+            initQuizUI();
+        }
+        
+        function initQuizUI() {
+            document.getElementById('menu').classList.add('hidden');
+            document.getElementById('results').classList.add('hidden');
+            document.getElementById('quiz').classList.remove('hidden');
+            currentQuestionIndex = 0;
+            correctCount = 0;
+            errors = [];
+            questionsPassedInBlock = 0;
+            startTime = Date.now();
+            showQuestion();
+        }
+        
+        function updateStats(elapsedSeconds) {
+            let elM = Math.floor(elapsedSeconds / 60);
+            let elS = elapsedSeconds % 60;
+            let statsText = `⏳ Прошло: ${elM} мин ${elS} сек<br>`;
+            if (currentMode === 'exam') {
+                let rem = Math.max(0, 3600 - elapsedSeconds);
+                let remM = Math.floor(rem / 60);
+                let remS = rem % 60;
+                statsText = `⏳ Прошло: ${elM} мин ${elS} сек | Осталось: ${remM} мин ${remS} сек<br>`;
+            }
+            statsText += `📝 Вопрос: ${currentQuestionIndex + 1} из ${examPool.length}`;
+            document.getElementById('stats-bar').innerHTML = statsText;
+        }
+        
+        function showQuestion() {
+            document.getElementById('training-feedback').classList.add('hidden');
+            document.getElementById('submit-btn').classList.remove('hidden');
+            document.getElementById('next-btn').classList.add('hidden');
+            if(currentMode !== 'exam') {
+                updateStats(Math.floor((Date.now() - startTime) / 1000));
+            }
+            const q = examPool[currentQuestionIndex];
+            document.getElementById('question-text').innerText = `Задание ${q.task_number}: ${q.question}`;
+            const optionsDiv = document.getElementById('options-container');
+            optionsDiv.innerHTML = '';
+            q.options.forEach((opt, index) => {
+                const btn = document.createElement('div');
+                btn.className = 'option-button';
+                btn.innerHTML = `<strong>${index + 1}.</strong> ${opt}`;
+                btn.dataset.value = index + 1;
+                btn.onclick = function() {
+                    if (!q.multiple_choice) {
+                        Array.from(optionsDiv.children).forEach(child => child.classList.remove('selected'));
+                    }
+                    this.classList.toggle('selected');
+                };
+                optionsDiv.appendChild(btn);
+            });
+        }
+        
+        function submitAnswer() {
+            const q = examPool[currentQuestionIndex];
+            const selectedButtons = document.querySelectorAll('.option-button.selected');
+            const userAnswers = Array.from(selectedButtons).map(btn => parseInt(btn.dataset.value)).sort((a, b) => a - b);
+            if (userAnswers.length === 0) return alert("Пожалуйста, выберите хотя бы один вариант ответа.");
+            const correctAnswers = [...q.correct_answers].sort((a, b) => a - b);
+            const isCorrect = JSON.stringify(userAnswers) === JSON.stringify(correctAnswers);
+            if (isCorrect) {
+                correctCount++;
+            } else {
+                errors.push(q);
+            }
+            questionsPassedInBlock++;
+            if (currentMode === 'training') {
+                const fbDiv = document.getElementById('training-feedback');
+                fbDiv.classList.remove('hidden', 'correct', 'incorrect');
+                if (isCorrect) {
+                    fbDiv.classList.add('correct');
+                    fbDiv.innerText = "✅ Верно! (Балл: 1)";
+                } else {
+                    fbDiv.classList.add('incorrect');
+                    fbDiv.innerText = "❌ Ответ неверный или неполный. (Балл: 0)";
+                }
+                document.querySelectorAll('.option-button').forEach(btn => {
+                    btn.onclick = null;
+                    btn.style.cursor = 'default';
+                });
+                document.getElementById('submit-btn').classList.add('hidden');
+                document.getElementById('next-btn').classList.remove('hidden');
+            } else {
+                nextQuestion();
+            }
+        }
+        
+        function nextQuestion() {
+            if (currentMode === 'training' && (questionsPassedInBlock === 10 || currentQuestionIndex === examPool.length - 1)) {
+                finishBlock();
+                return;
+            }
+            currentQuestionIndex++;
+            if (currentQuestionIndex < examPool.length) {
+                showQuestion();
+            } else {
+                finishExam(false);
+            }
+        }
+        
+        function finishBlock() {
+            document.getElementById('quiz').classList.add('hidden');
+            document.getElementById('results').classList.remove('hidden');
+            document.getElementById('results-title').innerText = "СРЕЗ РЕЗУЛЬТАТОВ БЛОКА";
+            let accuracy = (correctCount / questionsPassedInBlock) * 100;
+            document.getElementById('result-text').innerHTML =
+                `Пройдено вопросов: <b>${questionsPassedInBlock}</b><br>` +
+                `Верных ответов: <b>${correctCount}</b> (${accuracy.toFixed(1)}%)`;
+            renderErrors(errors);
+            const fixBtn = document.getElementById('fix-errors-btn');
+            if (errors.length > 0) {
+                fixBtn.classList.remove('hidden');
+                fixBtn.innerText = "Закрепить ошибки блока";
+                fixBtn.onclick = () => { startTraining([...errors]); };
+            } else {
+                fixBtn.classList.add('hidden');
+            }
+            if (currentQuestionIndex < examPool.length - 1) {
+                const continueBtn = document.createElement('button');
+                continueBtn.className = 'btn btn-success';
+                continueBtn.style.marginTop = '10px';
+                continueBtn.innerText = 'Продолжить следующие вопросы';
+                continueBtn.onclick = () => {
+                    document.getElementById('results').appendChild(continueBtn).remove();
+                    questionsPassedInBlock = 0;
+                    correctCount = 0;
+                    errors = [];
+                    currentQuestionIndex++;
+                    initQuizUI();
+                    currentQuestionIndex--;
+                    nextQuestion();
+                };
+                document.getElementById('results').appendChild(continueBtn);
+            }
+        }
+        
+        function finishExam(timeout) {
+            if (examTimer) clearInterval(examTimer);
+            document.getElementById('quiz').classList.add('hidden');
+            document.getElementById('results').classList.remove('hidden');
+            document.getElementById('results-title').innerText = currentMode === 'exam' ? "ИТОГИ ЭКЗАМЕНА" : "ИТОГИ УСЕЧЕННОГО ЭКЗАМЕНА";
+            let timeSpent = Math.floor((Date.now() - startTime) / 1000);
+            let m = Math.floor(timeSpent / 60);
+            let s = timeSpent % 60;
+            let accuracy = (correctCount / examPool.length) * 100;
+            let resultHTML = `Общее время: <b>${m} мин ${s} сек.</b><br><br>`;
+            resultHTML += `Набрано баллов: <b>${correctCount} из ${examPool.length}</b> (${accuracy.toFixed(1)}%)<br>`;
+            if (timeout) resultHTML += `<br><span style="color:red; font-weight:bold;">ВРЕМЯ ВЫШЛО! 60 минут истекли.</span>`;
+            document.getElementById('result-text').innerHTML = resultHTML;
+            renderErrors(errors);
+            const fixBtn = document.getElementById('fix-errors-btn');
+            if (errors.length > 0) {
+                fixBtn.classList.remove('hidden');
+                fixBtn.innerText = "Пройти ошибки в режиме тренировки";
+                fixBtn.onclick = () => { startTraining([...errors]); };
+            } else {
+                fixBtn.classList.add('hidden');
+            }
+        }
+        
+        function renderErrors(errArray) {
+            if (errArray.length === 0) {
+                document.getElementById('errors-container').innerHTML = '';
+                return;
+            }
+            let errorsHTML = `<h3 style="margin-top: 30px;">Разбор ошибок:</h3>`;
+            errArray.forEach(q => {
+                errorsHTML += `<div class="error-breakdown">`;
+                errorsHTML += `<strong>Задание ${q.task_number}:</strong> Правильный ответ:<br>`;
+                let sortedCorrectAnswers = [...q.correct_answers].sort((a, b) => a - b);
+                sortedCorrectAnswers.forEach(ans => {
+                    errorsHTML += `<div class="correct-answer-item">${ans}. ${q.options[ans - 1]}</div>`;
+                });
+                errorsHTML += `</div>`;
+            });
+            document.getElementById('errors-container').innerHTML = errorsHTML;
+        }
     </script>
-
-    <!-- НОВЫЙ КОД: РЕГИСТРАЦИЯ SERVICE WORKER -->
+    
+    <!-- РЕГИСТРАЦИЯ SERVICE WORKER -->
     <script>
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
