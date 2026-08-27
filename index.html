@@ -75,11 +75,16 @@
 </head>
 <body>
     
+    <    <!-- Всплывающее меню под кнопкой "Домик" -->
     <div id="home-modal" class="modal-overlay hidden">
         <div class="modal-content">
             <h3>Меню паузы</h3>
             <button class="btn btn-outline" onclick="closeHomeMenu()">▶ Продолжить тест</button>
             <button class="btn btn-success" onclick="saveAndExit()">💾 Сохранить и выйти</button>
+            
+            <!-- ВОТ ЭТА КНОПКА ОБНОВЛЕНИЯ -->
+            <button class="btn btn-outline" style="border-color: #8e8e93; color: #8e8e93;" onclick="forceUpdateApp()">🔄 Обновить приложение</button>
+            
             <button class="btn btn-danger" onclick="exitWithoutSaving()">🚪 Выйти без сохранения</button>
         </div>
     </div>
