@@ -654,14 +654,17 @@
             
             if (currentMode === 'error_fixing') {
                 // МЫ В РЕЖИМЕ ОШИБОК -> ДАЕМ КНОПКУ ВОЗВРАТА В ОСНОВНУЮ ТРЕНИРОВКУ
-                let btn = document.createElement('button');
+                                let btn = document.createElement('button');
                 btn.className = 'btn btn-success';
                 btn.innerText = 'Вернуться к основной тренировке';
                 btn.onclick = () => {
                     // Восстанавливаем сохраненный стейт
                     examPool = mainTrainingState.pool;
-                    currentQuestionIndex = mainTrainingState.index + 1; // Следующий вопрос после пройденного блока
-                    correctCount = mainTrainingState.correctCount;
+                    currentQuestionIndex = mainTrainingState.index + 1; 
+                    
+                    // ИСПРАВЛЕНИЕ: Начинаем новый блок с чистого листа!
+                    correctCount = 0; 
+                    
                     currentMode = mainTrainingState.mode;
                     
                     questionsPassedInBlock = 0;
