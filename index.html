@@ -242,7 +242,7 @@
         let mainTrainingState = null;
         
         // Загрузка
-        fetch('questionnaire.yaml?time=' + new Date().getTime())
+        fetch('questionnaire.yaml')
             .then(res => {
                 if (!res.ok) throw new Error("Файл не найден");
                 return res.text();
