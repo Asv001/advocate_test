@@ -194,38 +194,38 @@
             }
         }
 
-                // --- ЛОГИКА "ПОТЯНУТЬ ВНИЗ ДЛЯ ОБНОВЛЕНИЯ" (ИСПРАВЛЕННАЯ) ---
-        let touchStartY = 0;
+        // // --- ЛОГИКА "ПОТЯНУТЬ ВНИЗ ДЛЯ ОБНОВЛЕНИЯ" (ИСПРАВЛЕННАЯ) ---
+        // let touchStartY = 0;
 
-        document.addEventListener('touchstart', e => {
-            if (window.scrollY <= 5) {
-                touchStartY = e.changedTouches[0].screenY;
-            }
-        }, {passive: true});
+        // document.addEventListener('touchstart', e => {
+        //     if (window.scrollY <= 5) {
+        //         touchStartY = e.changedTouches[0].screenY;
+        //     }
+        // }, {passive: true});
 
-        document.addEventListener('touchend', e => {
-            if (window.scrollY <= 5 && touchStartY > 0) {
-                let touchEndY = e.changedTouches[0].screenY;
+        // document.addEventListener('touchend', e => {
+        //     if (window.scrollY <= 5 && touchStartY > 0) {
+        //         let touchEndY = e.changedTouches[0].screenY;
                 
-                // Проверяем длину свайпа
-                if (touchEndY - touchStartY > 120) {
-                    forceUpdateApp();
-                }
-            }
-            // ВАЖНО: Всегда обнуляем старт при отпускании пальца!
-            touchStartY = 0; 
-        }, {passive: true});
+        //         // Проверяем длину свайпа
+        //         if (touchEndY - touchStartY > 120) {
+        //             forceUpdateApp();
+        //         }
+        //     }
+        //     // ВАЖНО: Всегда обнуляем старт при отпускании пальца!
+        //     touchStartY = 0; 
+        // }, {passive: true});
 
-        // Фиксируем, где палец оторвался от экрана
-        document.addEventListener('touchend', e => {
-            if (window.scrollY === 0) {
-                touchEndY = e.changedTouches[0].screenY;
-                // Если мы протащили палец вниз больше чем на 150 пикселей
-                if (touchEndY - touchStartY > 150) {
-                    forceUpdateApp();
-                }
-            }
-        }, {passive: true});
+        // // Фиксируем, где палец оторвался от экрана
+        // document.addEventListener('touchend', e => {
+        //     if (window.scrollY === 0) {
+        //         touchEndY = e.changedTouches[0].screenY;
+        //         // Если мы протащили палец вниз больше чем на 150 пикселей
+        //         if (touchEndY - touchStartY > 150) {
+        //             forceUpdateApp();
+        //         }
+        //     }
+        // }, {passive: true});
 
         let allQuestions = [];
         let examPool = [];
